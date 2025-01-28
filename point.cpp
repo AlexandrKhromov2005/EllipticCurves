@@ -1,17 +1,27 @@
 #include "point.hpp"
 #include "curve.hpp"
 #include <stdexcept>
-
-int extendedEuclid(int a, int b, int& x, int& y) {
-    if (b == 0) { x = 1; y = 0; return a; }
-    int gcd = extendedEuclid(b, a % b, y, x);
-    y -= (a / b) * x;
-    return gcd;
-}
+#include <cmath>
 
 int modInverse(int a, int p) {
-    int x, y, gcd = extendedEuclid(a, p, x, y);
-    return (gcd != 1) ? -1 : (x % p + p) % p;
+    a = a % p;
+    if (a < 0) a += p;
+    int gcd, x;
+    int old_r = p, r = a;
+    int old_s = 0, s = 1;
+
+    while (r != 0) {
+        int quotient = old_r / r;
+        int temp = r;
+        r = old_r - quotient * r;
+        old_r = temp;
+        temp = s;
+        s = old_s - quotient * s;
+        old_s = temp;
+    }
+
+    if (old_r != 1) throw std::runtime_error("Inverse does not exist");
+    return (old_s % p + p) % p;
 }
 
 Point::Point(int x, int y, bool is_inf, const Curve* crv) : x(x), y(y), is_infinity(is_inf), curve(crv) {}
@@ -20,41 +30,47 @@ bool Point::isInfinity() const { return is_infinity; }
 int Point::getX() const { return x; }
 int Point::getY() const { return y; }
 
-Point Point::operator+(const Point& Q) const {
-    if (is_infinity) return Q;
-    if (Q.is_infinity) return *this;
-    int p = curve->getP();
-    if (x == Q.x && (y + Q.y) % p == 0) return Point(0, 0, true, curve);
-    int s, numerator, denominator, inv_denominator;
-    if (*this == Q) {
-        numerator = (3 * x * x + curve->getA()) % p;
-        denominator = (2 * y) % p;
+Point Point::operator+(const Point& other) const {
+    if (this->isInfinity()) return other;
+    if (other.isInfinity()) return *this;
+    if (this->x == other.x && this->y == other.y) {
+        if (this->y == 0) return Point(0, 0, true, curve);
+        int numerator = (3 * x * x + curve->getA()) % curve->getP();
+        int denominator = (2 * y) % curve->getP();
+        int s = (numerator * modInverse(denominator, curve->getP())) % curve->getP();
+        int x3 = (s * s - 2 * x) % curve->getP();
+        x3 = (x3 + curve->getP()) % curve->getP();
+        int y3 = (s * (x - x3) - y) % curve->getP();
+        y3 = (y3 + curve->getP()) % curve->getP();
+        return Point(x3, y3, false, curve);
     } else {
-        numerator = (Q.y - y) % p;
-        denominator = (Q.x - x) % p;
+        if (this->x == other.x) return Point(0, 0, true, curve);
+        int numerator = (other.y - y) % curve->getP();
+        int denominator = (other.x - x) % curve->getP();
+        int s = (numerator * modInverse(denominator, curve->getP())) % curve->getP();
+        int x3 = (s * s - x - other.x) % curve->getP();
+        x3 = (x3 + curve->getP()) % curve->getP();
+        int y3 = (s * (x - x3) - y) % curve->getP();
+        y3 = (y3 + curve->getP()) % curve->getP();
+        return Point(x3, y3, false, curve);
     }
-    inv_denominator = modInverse(denominator, p);
-    if (inv_denominator == -1) throw std::logic_error("No inverse");
-    s = (numerator * inv_denominator) % p;
-    int x3 = (s * s - x - Q.x) % p;
-    int y3 = (s * (x - x3) - y) % p;
-    return Point((x3 + p) % p, (y3 + p) % p, false, curve);
 }
 
 Point Point::multiply(int k) const {
-    if (is_infinity) return *this;
-    int order = curve->getOrder();
-    k = k % order;
     Point result(0, 0, true, curve);
-    Point current = *this;
+    Point addend = *this;
+    k = k % (curve->getOrderOfGroup());
+    if (k < 0) k += curve->getOrderOfGroup();
     while (k > 0) {
-        if (k % 2 == 1) result = result + current;
-        current = current + current;
+        if (k % 2 == 1) {
+            result = result + addend;
+        }
+        addend = addend + addend;
         k /= 2;
     }
     return result;
 }
 
 bool operator==(const Point& P, const Point& Q) {
-    return (P.is_infinity && Q.is_infinity) || (P.x == Q.x && P.y == Q.y && P.curve == Q.curve);
+    return P.x == Q.x && P.y == Q.y && P.is_infinity == Q.is_infinity;
 }
