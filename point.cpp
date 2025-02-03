@@ -1,76 +1,78 @@
 #include "point.hpp"
 #include "curve.hpp"
-#include <stdexcept>
-#include <cmath>
+#include "algorithms_for_primes.hpp"
 
-int modInverse(int a, int p) {
-    a = a % p;
-    if (a < 0) a += p;
-    int gcd, x;
-    int old_r = p, r = a;
-    int old_s = 0, s = 1;
+// Конструкторы
+Point::Point(Curve* crv) : x(0), y(0), is_infinity(true), crv(crv) {}
+Point::Point(const mpz_class& x, const mpz_class& y, Curve* crv) 
+    : x(mod(x, crv->get_p())), 
+      y(mod(y, crv->get_p())), 
+      is_infinity(false), 
+      crv(crv) {}
 
-    while (r != 0) {
-        int quotient = old_r / r;
-        int temp = r;
-        r = old_r - quotient * r;
-        old_r = temp;
-        temp = s;
-        s = old_s - quotient * s;
-        old_s = temp;
-    }
-
-    if (old_r != 1) throw std::runtime_error("Inverse does not exist");
-    return (old_s % p + p) % p;
-}
-
-Point::Point(int x, int y, bool is_inf, const Curve* crv) : x(x), y(y), is_infinity(is_inf), curve(crv) {}
-
+// Геттеры
+mpz_class Point::get_x() const { return x; }
+mpz_class Point::get_y() const { return y; }
 bool Point::isInfinity() const { return is_infinity; }
-int Point::getX() const { return x; }
-int Point::getY() const { return y; }
+Curve* Point::get_curve() const { return crv; }
 
+// Оператор сравнения
+bool Point::operator==(const Point& other) const {
+    if (isInfinity() && other.isInfinity()) return true;
+    if (isInfinity() || other.isInfinity()) return false;
+    return (x == other.x) && (y == other.y) && (crv == other.crv);
+}
+
+// Сложение точек
 Point Point::operator+(const Point& other) const {
-    if (this->isInfinity()) return other;
+    if (crv != other.crv) throw std::invalid_argument("Points are on different curves");
+
+    // Обработка бесконечно удаленных точек
+    if (isInfinity()) return other;
     if (other.isInfinity()) return *this;
-    if (this->x == other.x && this->y == other.y) {
-        if (this->y == 0) return Point(0, 0, true, curve);
-        int numerator = (3 * x * x + curve->getA()) % curve->getP();
-        int denominator = (2 * y) % curve->getP();
-        int s = (numerator * modInverse(denominator, curve->getP())) % curve->getP();
-        int x3 = (s * s - 2 * x) % curve->getP();
-        x3 = (x3 + curve->getP()) % curve->getP();
-        int y3 = (s * (x - x3) - y) % curve->getP();
-        y3 = (y3 + curve->getP()) % curve->getP();
-        return Point(x3, y3, false, curve);
-    } else {
-        if (this->x == other.x) return Point(0, 0, true, curve);
-        int numerator = (other.y - y) % curve->getP();
-        int denominator = (other.x - x) % curve->getP();
-        int s = (numerator * modInverse(denominator, curve->getP())) % curve->getP();
-        int x3 = (s * s - x - other.x) % curve->getP();
-        x3 = (x3 + curve->getP()) % curve->getP();
-        int y3 = (s * (x - x3) - y) % curve->getP();
-        y3 = (y3 + curve->getP()) % curve->getP();
-        return Point(x3, y3, false, curve);
+
+    mpz_class p = crv->get_p();
+    mpz_class x1 = x, y1 = y;
+    mpz_class x2 = other.x, y2 = other.y;
+
+    // Точки взаимно обратны
+    if (x1 == x2 && y1 != y2) return Point(crv);
+
+    // Вычисление наклона λ
+    mpz_class lambda;
+    if (*this == other) { // Удвоение точки
+        if (y1 == 0) return Point(crv); // Касательная вертикальна
+        mpz_class numerator = mod(3 * mod(x1 * x1, p) + crv->get_a(), p);
+        mpz_class denominator = mod(2 * y1, p);
+        mpz_class inv_denominator = mod_inverse(denominator, p);
+        lambda = mod(numerator * inv_denominator, p);
+    } else { // Сложение разных точек
+        mpz_class numerator = mod(y2 - y1, p);
+        mpz_class denominator = mod(x2 - x1, p);
+        mpz_class inv_denominator = mod_inverse(denominator, p);
+        lambda = mod(numerator * inv_denominator, p);
     }
+
+    // Вычисление новых координат
+    mpz_class x3 = mod(lambda * lambda - x1 - x2, p);
+    mpz_class y3 = mod(lambda * (x1 - x3) - y1, p);
+
+    return Point(x3, y3, crv);
 }
 
-Point Point::multiply(int k) const {
-    Point result(0, 0, true, curve);
-    Point addend = *this;
-    k = k % (curve->getOrderOfGroup());
-    if (k < 0) k += curve->getOrderOfGroup();
-    while (k > 0) {
-        if (k % 2 == 1) {
-            result = result + addend;
+// Умножение на скаляр (алгоритм double-and-add)
+Point Point::operator*(const mpz_class& k) const {
+    Point result(crv);
+    Point base = *this;
+    mpz_class exponent = k;
+
+    while (exponent > 0) {
+        if (exponent % 2 == 1) {
+            result = result + base;
         }
-        addend = addend + addend;
-        k /= 2;
+        base = base + base;
+        exponent /= 2;
     }
-    return result;
-}
 
-bool operator==(const Point& P, const Point& Q) {
-    return P.x == Q.x && P.y == Q.y && P.is_infinity == Q.is_infinity;
+    return result;
 }

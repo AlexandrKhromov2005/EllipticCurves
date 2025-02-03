@@ -1,113 +1,82 @@
 #include <iostream>
-#include <limits>
 #include "curve.hpp"
 #include "point.hpp"
+#include "algorithms_for_primes.hpp"
 
 int main() {
-    int a, b, p;
-    
-    std::cout << "Enter elliptic curve parameters (a, b, p):\n";
-    std::cout << "a: ";
-    std::cin >> a;
-    std::cout << "b: ";
-    std::cin >> b;
-    std::cout << "p (prime number > 3): ";
-    std::cin >> p;
-
-    try {
+    // Example 1: Generate and display all points
+    {
+        std::cout << "=== Example 1: Generating all points ===" << std::endl;
+        mpz_class a = 1, b = 1, p = 23; // Curve y² = x³ + x + 1 over GF(23)
         Curve curve(a, b, p);
-        curve.getOrderOfPoints();
-        curve.findPrimeSubgroups();
 
-        const std::vector<Point>& points = curve.getPoints();
-        const std::vector<int>& orders = curve.getOrders();
-        const std::vector<int>& primes = curve.getPrimeSubgroups();
+        curve.find_points(); 
 
-        // Group info
-        std::cout << "\nGroup structure:\n";
-        std::cout << "Order: " << curve.getOrderOfGroup() << "\n";
-        std::cout << "Is cyclic: " << (curve.isCyclic() ? "Yes" : "No") << "\n";
-        if (!primes.empty()) {
-            std::cout << "Prime-order subgroups: ";
-            for (int p : primes) std::cout << p << " ";
-            std::cout << "\n";
-        }
+        std::cout << "Curve: y^2 = x^3 + " 
+                  << curve.get_a() << "x + " 
+                  << curve.get_b() << " over GF(" 
+                  << curve.get_p() << ")\n";
 
-        // Points list
-        std::cout << "\nCurve points and their orders:\n";
-        for (size_t i = 0; i < points.size(); ++i) {
-            const Point& pt = points[i];
-            if (pt.isInfinity()) {
-                std::cout << "[" << i << "] Infinity point : order " << orders[i] << "\n";
-            } else {
-                std::cout << "[" << i << "] (" << pt.getX() << ", " << pt.getY() << ") : order " << orders[i] << "\n";
+        std::cout << "\nTotal points: " << curve.points.size() << "\n";
+        curve.print_points();
+        std::cout << "\n";
+    }
+
+    // Example 2: Validate generated points
+    {
+        std::cout << "\n=== Example 2: Point validation ===" << std::endl;
+        mpz_class a = 0, b = 7, p = 17; // Curve y² = x³ + 7 over GF(17)
+        Curve curve(a, b, p);
+        curve.find_points();
+
+        int invalid_count = 0;
+        for (const Point& p : curve.points) {
+            if (!curve.is_on_curve(p)) {
+                std::cerr << "ERROR: Point (" 
+                          << p.get_x() << ", " 
+                          << p.get_y() << ") is invalid!\n";
+                invalid_count++;
             }
         }
 
-        // Menu
-        while (true) {
-            std::cout << "\nChoose an action:\n"
-                      << "1. Multiply a point\n"
-                      << "2. Show group info\n"
-                      << "3. Exit\n"
-                      << "> ";
-            int choice;
-            std::cin >> choice;
-            if (choice == 3) break;
-
-            if (choice == 1) {
-                // Point multiplication
-                std::cout << "Enter point index (0-" << points.size() - 1 << "): ";
-                int index;
-                std::cin >> index;
-                
-                if (std::cin.fail() || index < 0 || index >= static_cast<int>(points.size())) {
-                    std::cerr << "Invalid point index!\n";
-                    std::cin.clear();
-                    std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-                    continue;
-                }
-
-                std::cout << "Enter multiplier: ";
-                int k;
-                std::cin >> k;
-                if (std::cin.fail()) {
-                    std::cerr << "Invalid multiplier!\n";
-                    std::cin.clear();
-                    std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-                    continue;
-                }
-
-                try {
-                    Point result = points[index].multiply(k);
-                    std::cout << "Result: ";
-                    if (result.isInfinity()) {
-                        std::cout << "Infinity point\n";
-                    } else {
-                        std::cout << "(" << result.getX() << ", " << result.getY() << ")\n";
-                    }
-                } catch (const std::exception& e) {
-                    std::cerr << "Error: " << e.what() << "\n";
-                }
-
-            } else if (choice == 2) {
-                // Group info
-                std::cout << "Group order: " << curve.getOrderOfGroup() << "\n";
-                std::cout << "Cyclic: " << (curve.isCyclic() ? "Yes" : "No") << "\n";
-                std::cout << "Prime subgroups: ";
-                for (int p : primes) std::cout << p << " ";
-                std::cout << "\n";
-            } else {
-                std::cerr << "Invalid choice!\n";
-            }
+        if (invalid_count == 0) {
+            std::cout << "All " << curve.points.size() 
+                      << " points are valid!\n";
+        } else {
+            std::cout << "Found " << invalid_count 
+                      << " invalid points!\n";
         }
-    } 
-    catch (const std::invalid_argument& e) {
-        std::cerr << "Error: " << e.what() << "\n";
     }
-    catch (...) {
-        std::cerr << "Unknown error!\n";
-    }
+
+    // Пример 3: Операции с точками (исправленный вывод)
+{
+    std::cout << "\n=== Example 3: Point operations ===" << std::endl;
+    mpz_class a = 1, b = 1, p = 23;
+    Curve curve(a, b, p);
+    curve.find_points();
+
+    Point P = curve.points[1]; // (0, 1)
+    Point Q = curve.points[2]; // (0, 22)
+
+    Point sum = P + Q;
+    Point double_P = P * 2;
+
+    // Вывод с проверкой на бесконечность
+    auto print_point = [](const std::string& name, const Point& p) {
+        std::cout << name << ": ";
+        if (p.isInfinity()) {
+            std::cout << "INF";
+        } else {
+            std::cout << "(" << p.get_x() << ", " << p.get_y() << ")";
+        }
+        std::cout << "\n";
+    };
+
+    print_point("P", P);
+    print_point("Q", Q);
+    print_point("P + Q", sum);
+    print_point("2P", double_P);
+}
 
     return 0;
 }

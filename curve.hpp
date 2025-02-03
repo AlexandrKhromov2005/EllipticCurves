@@ -2,31 +2,28 @@
 #define CURVE_HPP
 
 #include <vector>
-class Point;
+#include "point.hpp"
+#include "algorithms_for_primes.hpp"
 
 class Curve {
 private:
-    int a;
-    int b;
-    int p;
-    std::vector<Point> points;
-    mutable std::vector<int> orders;
-    mutable std::vector<int> primeSubgroups; // Добавлено
-    int curveEquation(int x) const;
-    std::vector<int> findYValues(int value) const;
+    mpz_class a, b, p;
+
 
 public:
-    Curve(int a, int b, int p);
-    int getA() const;
-    int getB() const;
-    int getP() const;
-    const std::vector<Point>& getPoints() const;
-    int getOrderOfGroup() const;
-    void getOrderOfPoints() const;
-    const std::vector<int>& getOrders() const;
-    void findPrimeSubgroups() const; // Добавлено
-    const std::vector<int>& getPrimeSubgroups() const; // Добавлено
-    bool isCyclic() const; // Добавлено
+    std::vector<Point> points;   
+
+    Curve(mpz_class a, mpz_class b, mpz_class p);
+    Curve();
+
+    mpz_class get_a();
+    mpz_class get_b();
+    mpz_class get_p();
+
+    bool is_on_curve(const Point& P) const;
+
+    void find_points();
+    void print_points();
 };
 
 #endif
