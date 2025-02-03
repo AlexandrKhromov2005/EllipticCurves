@@ -13,13 +13,13 @@ void Curve::find_points() {
     for (mpz_class x = 0; x < p; ++x) {
         mpz_class y_pow_2 = (x * x * x + a * x + b) % p;
         if (y_pow_2 == 0) {
-            points.push_back(Point(x, 0, this));  // добавляем точку (x, 0)
+            points.push_back(Point(x, 0, this));  
             continue;
         }
 
         if (legendre_symbol(y_pow_2, p) == 1) {
-            points.push_back(Point(x, mod_sqrt(y_pow_2, p), this));  // добавляем точку (x, y)
-            points.push_back(Point(x, p - mod_sqrt(y_pow_2, p), this));  // добавляем точку (x, -y)
+            points.push_back(Point(x, mod_sqrt(y_pow_2, p), this));  
+            points.push_back(Point(x, p - mod_sqrt(y_pow_2, p), this));  
         }
     }
 }
@@ -38,12 +38,11 @@ void Curve::print_points() {
 }
 
 bool Curve::is_on_curve(const Point& P) const {
-    if (P.isInfinity()) return true; // Бесконечно удаленная точка всегда на кривой
+    if (P.isInfinity()) return true; 
     mpz_class x = P.get_x();
     mpz_class y = P.get_y();
 
-    // Проверяем уравнение кривой: y² ≡ x³ + a*x + b mod p
-    mpz_class lhs = (y * y) % p;         // Левая часть: y²
-    mpz_class rhs = (x*x*x + a*x + b) % p; // Правая часть: x³ + ax + b
+    mpz_class lhs = (y * y) % p;         
+    mpz_class rhs = (x*x*x + a*x + b) % p; 
     return lhs == rhs;
 }

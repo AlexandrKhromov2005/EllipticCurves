@@ -16,18 +16,15 @@ mpz_class Point::get_y() const { return y; }
 bool Point::isInfinity() const { return is_infinity; }
 Curve* Point::get_curve() const { return crv; }
 
-// Оператор сравнения
 bool Point::operator==(const Point& other) const {
     if (isInfinity() && other.isInfinity()) return true;
     if (isInfinity() || other.isInfinity()) return false;
     return (x == other.x) && (y == other.y) && (crv == other.crv);
 }
 
-// Сложение точек
 Point Point::operator+(const Point& other) const {
     if (crv != other.crv) throw std::invalid_argument("Points are on different curves");
 
-    // Обработка бесконечно удаленных точек
     if (isInfinity()) return other;
     if (other.isInfinity()) return *this;
 
@@ -35,32 +32,28 @@ Point Point::operator+(const Point& other) const {
     mpz_class x1 = x, y1 = y;
     mpz_class x2 = other.x, y2 = other.y;
 
-    // Точки взаимно обратны
     if (x1 == x2 && y1 != y2) return Point(crv);
 
-    // Вычисление наклона λ
     mpz_class lambda;
-    if (*this == other) { // Удвоение точки
-        if (y1 == 0) return Point(crv); // Касательная вертикальна
+    if (*this == other) { 
+        if (y1 == 0) return Point(crv); 
         mpz_class numerator = mod(3 * mod(x1 * x1, p) + crv->get_a(), p);
         mpz_class denominator = mod(2 * y1, p);
         mpz_class inv_denominator = mod_inverse(denominator, p);
         lambda = mod(numerator * inv_denominator, p);
-    } else { // Сложение разных точек
+    } else { 
         mpz_class numerator = mod(y2 - y1, p);
         mpz_class denominator = mod(x2 - x1, p);
         mpz_class inv_denominator = mod_inverse(denominator, p);
         lambda = mod(numerator * inv_denominator, p);
     }
 
-    // Вычисление новых координат
     mpz_class x3 = mod(lambda * lambda - x1 - x2, p);
     mpz_class y3 = mod(lambda * (x1 - x3) - y1, p);
 
     return Point(x3, y3, crv);
 }
 
-// Умножение на скаляр (алгоритм double-and-add)
 Point Point::operator*(const mpz_class& k) const {
     Point result(crv);
     Point base = *this;
