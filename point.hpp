@@ -4,6 +4,9 @@
 #include <gmpxx.h>
 #include <stdexcept>
 #include "algorithms_for_primes.hpp"
+#include <vector>
+#include <map>
+#include <cmath>
 
 class Curve;
 
@@ -24,8 +27,10 @@ public:
     Curve* get_curve() const;
 
     Point operator+(const Point& other) const;
-    Point operator*(const mpz_class& k) const;
+    Point operator*(const mpz_class &k) const;
     bool operator==(const Point& other) const;
+
+    mpz_class calculate_order() const;
 };
 
 #endif // POINT_HPP

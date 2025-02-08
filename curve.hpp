@@ -9,9 +9,9 @@ class Curve {
 private:
     mpz_class a, b, p;
 
-
 public:
-    std::vector<Point> points;   
+    std::vector<Point> points; 
+    std::vector<mpz_class> orders;
 
     Curve(mpz_class a, mpz_class b, mpz_class p);
     Curve();
@@ -24,6 +24,8 @@ public:
 
     void find_points();
     void print_points();
+    
+    void calculate_orders();
 };
 
 #endif
