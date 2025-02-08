@@ -10,7 +10,6 @@ Point::Point(const mpz_class& x, const mpz_class& y, Curve* crv)
       is_infinity(false), 
       crv(crv) {}
 
-// Геттеры
 mpz_class Point::get_x() const { return x; }
 mpz_class Point::get_y() const { return y; }
 bool Point::isInfinity() const { return is_infinity; }
@@ -195,18 +194,12 @@ mpz_class Point::calculate_order() const {
         return pt.get_x().get_str() + "," + pt.get_y().get_str();
     };
     
-    // Лямбда для уточнения (рефайна) кандидата на порядок.
-    // Идея: если для некоторого простого делителя f от candidate
-    // оказывается, что (candidate / f)*P = O, то можно уменьшить кандидат.
+
     auto refine_order = [this](mpz_class candidate) -> mpz_class {
         mpz_class order = candidate;
-        // Перебираем возможные делители начиная с 2.
-        // (Простой перебор; предполагается, что order не слишком велик.)
         for (mpz_class f = 2; f <= order; f++) {
-            // Пока f делит order, пробуем уменьшить порядок
             while (order % f == 0) {
                 mpz_class new_order = order / f;
-                // Если new_order уже даёт нейтральный элемент, то уточняем порядок
                 if (((*this) * new_order).isInfinity()) {
                     order = new_order;
                 } else {
@@ -217,22 +210,18 @@ mpz_class Point::calculate_order() const {
         return order;
     };
     
-    // Этап 1. Вычисляем маленькие шаги:
-    // Для j = 0, 1, …, m-1 вычисляем jP и сохраняем в map
     std::map<std::string, mpz_class> babySteps;
     for (mpz_class j = 0; j < m; j++) {
-        Point baby = (*this) * j;  // 0*P, 1*P, 2*P, …, (m-1)*P
+        Point baby = (*this) * j; 
         std::string key = point_to_string(baby);
         if (babySteps.find(key) == babySteps.end()) {
             babySteps[key] = j;
         }
     }
     
-    // Этап 2. Вычисляем giant-steps:
     Point factor = (*this) * m;
     for (mpz_class i = 1; i < m; i++) {
         Point giant = factor * i;
-        // Берём -giant (для сравнения с baby steps)
         Point neg_giant = giant.isInfinity()
                           ? giant
                           : Point(giant.get_x(), mod(-giant.get_y(), this->crv->get_p()), this->crv);
@@ -241,24 +230,18 @@ mpz_class Point::calculate_order() const {
         if (babySteps.find(key) != babySteps.end()) {
             mpz_class j = babySteps[key];
             mpz_class candidate_order = i * m + j;
-            // Уточняем найденный порядок, пытаясь «сдернуть» лишние множители
             candidate_order = refine_order(candidate_order);
-            // Если найденный порядок является делителем общего порядка группы, возвращаем его
             if (candidate_order > 0 && (N % candidate_order == 0)) {
                 return candidate_order;
             }
-            // Если кандидат не удовлетворяет условию делимости, продолжаем поиск
         }
     }
     
-    // Запасной перебор: если алгоритм baby-step/giant-step не дал корректного кандидата,
-    // перебираем последовательное умножение, пока не найдём порядок.
     mpz_class order = 1;
     Point current = *this;
     while (!current.isInfinity()) {
         order++;
         current = current + *this;
-        // Если порядок превышает общий порядок группы, прерываем цикл (это маловероятно)
         if (order > N)
             break;
     }
@@ -267,7 +250,6 @@ mpz_class Point::calculate_order() const {
         return order;
     }
     
-    // Если ни один из методов не дал корректного результата, возвращаем полученное значение.
     return order;
 }
 
