@@ -24,8 +24,7 @@ public:
 
     void find_points();
     void print_points();
-    
-    void calculate_orders();
+    mpz_class get_group_order();
 };
 
 #endif

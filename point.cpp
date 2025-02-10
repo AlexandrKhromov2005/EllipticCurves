@@ -1,10 +1,11 @@
 #include "point.hpp"
 #include "curve.hpp"
 #include "algorithms_for_primes.hpp"
+#include <set>
 
 // Конструкторы
 Point::Point(Curve* crv) : x(0), y(0), is_infinity(true), crv(crv) {}
-Point::Point(const mpz_class& x, const mpz_class& y, Curve* crv) 
+Point::Point(const mpz_class& x, const mpz_class& y, Curve* crv, bool is_infinity) 
     : x(mod(x, crv->get_p())), 
       y(mod(y, crv->get_p())), 
       is_infinity(false), 
@@ -22,20 +23,26 @@ bool Point::operator==(const Point& other) const {
 }
 
 Point Point::operator+(const Point& other) const {
-    if (crv != other.crv) throw std::invalid_argument("Points are on different curves");
+    if (crv != other.crv)
+        throw std::invalid_argument("Points are on different curves");
 
-    if (isInfinity()) return other;
+    // Если одна из точек – нейтральный элемент, возвращаем другую
+    if (this->isInfinity()) return other;
     if (other.isInfinity()) return *this;
 
     mpz_class p = crv->get_p();
     mpz_class x1 = x, y1 = y;
     mpz_class x2 = other.x, y2 = other.y;
 
-    if (x1 == x2 && y1 != y2) return Point(crv);
+    if (x1 == x2 && mod(y1 + y2, p) == 0) {
+        return Point(crv); 
+    }
 
     mpz_class lambda;
     if (*this == other) { 
-        if (y1 == 0) return Point(crv); 
+        if (y1 == 0) {
+            return Point(crv);
+        }
         mpz_class numerator = mod(3 * mod(x1 * x1, p) + crv->get_a(), p);
         mpz_class denominator = mod(2 * y1, p);
         mpz_class inv_denominator = mod_inverse(denominator, p);
@@ -50,12 +57,13 @@ Point Point::operator+(const Point& other) const {
     mpz_class x3 = mod(lambda * lambda - x1 - x2, p);
     mpz_class y3 = mod(lambda * (x1 - x3) - y1, p);
 
-    return Point(x3, y3, crv);
+
+    return Point(x3, y3, crv, false);
 }
 
+
+
 Point Point::operator*(const mpz_class &k) const {
-    if (k == mpz_class(-1)){return Point(x, -y, crv);}
-    if (k == mpz_class(0)){return  Point(this->get_curve());}
     if (k == mpz_class(1)){return *this;}
     Point result(crv);
     Point base = *this;
@@ -70,6 +78,14 @@ Point Point::operator*(const mpz_class &k) const {
     }
 
     return result;
+}
+
+void Point::set_order(mpz_class ord) {
+    this->order = ord;
+}
+
+mpz_class Point::get_order() const{
+    return this->order;
 }
 
 
@@ -170,89 +186,81 @@ Point Point::operator*(const mpz_class &k) const {
     return order;
 }*/
 
-mpz_class Point::calculate_order() const {
-    // Если точка на бесконечности, её порядок равен 1
-    if (this->isInfinity())
-        return mpz_class(1);
-    
-    // Если y == 0, то удвоение даёт нейтральный элемент
-    if (this->get_y() == 0)
-        return mpz_class(2);
-    
-    // Порядок всей группы (количество точек на кривой)
-    mpz_class N = static_cast<unsigned long>(this->crv->points.size());
-    
-    // Определяем параметр m для baby-step giant-step (m ≈ √N)
-    mpz_class sqrt_N;
-    mpz_sqrt(sqrt_N.get_mpz_t(), N.get_mpz_t());
-    mpz_class m = (sqrt_N * sqrt_N < N) ? sqrt_N + 1 : sqrt_N;
-    
-    // Лямбда для получения строкового представления точки
-    auto point_to_string = [this](const Point& pt) -> std::string {
-        if (pt.isInfinity())
-            return "inf";
-        return pt.get_x().get_str() + "," + pt.get_y().get_str();
-    };
-    
-
-    auto refine_order = [this](mpz_class candidate) -> mpz_class {
-        mpz_class order = candidate;
-        for (mpz_class f = 2; f <= order; f++) {
-            while (order % f == 0) {
-                mpz_class new_order = order / f;
-                if (((*this) * new_order).isInfinity()) {
-                    order = new_order;
-                } else {
-                    break;
-                }
-            }
-        }
-        return order;
-    };
-    
-    std::map<std::string, mpz_class> babySteps;
-    for (mpz_class j = 0; j < m; j++) {
-        Point baby = (*this) * j; 
-        std::string key = point_to_string(baby);
-        if (babySteps.find(key) == babySteps.end()) {
-            babySteps[key] = j;
-        }
-    }
-    
-    Point factor = (*this) * m;
-    for (mpz_class i = 1; i < m; i++) {
-        Point giant = factor * i;
-        Point neg_giant = giant.isInfinity()
-                          ? giant
-                          : Point(giant.get_x(), mod(-giant.get_y(), this->crv->get_p()), this->crv);
-        
-        std::string key = point_to_string(neg_giant);
-        if (babySteps.find(key) != babySteps.end()) {
-            mpz_class j = babySteps[key];
-            mpz_class candidate_order = i * m + j;
-            candidate_order = refine_order(candidate_order);
-            if (candidate_order > 0 && (N % candidate_order == 0)) {
-                return candidate_order;
-            }
-        }
-    }
-    
-    mpz_class order = 1;
-    Point current = *this;
-    while (!current.isInfinity()) {
-        order++;
-        current = current + *this;
-        if (order > N)
-            break;
-    }
-    order = refine_order(order);
-    if (order > 0 && (N % order == 0)) {
-        return order;
-    }
-    
-    return order;
+std::string Point::to_string() const {
+    if (isInfinity()) return "inf";
+    return x.get_str() + "," + y.get_str();
 }
 
+void Point::calculate_order() {
+    // Если точка бесконечная или y == 0, порядок известен
+    if (this->isInfinity()) {
+        this->set_order(mpz_class(1));
+        return; 
+    }
+    if (this->get_y() == 0) {
+        this->set_order(mpz_class(2));
+        return;
+    }
 
+    mpz_class N = crv->get_group_order();
 
+    // Вычисляем m = ceil(sqrt(N))
+    mpz_class m;
+    mpz_sqrt(m.get_mpz_t(), N.get_mpz_t());
+    if (m * m < N) {
+        m = m + 1;
+    }
+
+    // Формируем вектор baby‑steps: baby[i] = i * P для i = 0 ... m-1
+    // Заметим, что 0 * P = Infinity (предполагается, что конструктор по кривой создаёт Infinity)
+    std::vector<Point> babySteps;
+    for (int i = 0; i < m; ++i) {
+        babySteps.push_back(*this * i);
+    }
+
+    // Вычисляем M = m * P
+    Point M = *this * m;
+
+    // Формируем вектор giant‑steps: giant[j] = -j * M для j = 0 ... m-1
+    std::vector<Point> giantSteps;
+    for (int j = 0; j < m; ++j) {
+        // Вычисляем j * M
+        Point temp = M * j;
+        // Если точка не бесконечность, вычисляем её отрицание: -temp = (temp.x, p - temp.y)
+        if (!temp.isInfinity()) {
+            mpz_class negY = crv->get_p() - temp.get_y();
+            temp = Point(temp.get_x(), negY, temp.get_curve(), false);
+        }
+        giantSteps.push_back(temp);
+    }
+
+    // Ищем такие i и j, что:
+    //    babySteps[i] == giantSteps[j]
+    // Тогда r = i + m * j удовлетворяет: r * P = Infinity.
+    // Чтобы найти минимальный кандидат, внешний цикл идет по j от 0 до m-1,
+    // а внутренний по i от 0 до m-1, при этом тривиальное совпадение (i==0 и j==0) пропускается.
+    bool found = false;
+    mpz_class orderCandidate;
+    for (int j = 0; j < m && !found; ++j) {
+        for (int i = 0; i < m; ++i) {
+            if (i == 0 && j == 0) continue; // пропускаем тривиальное совпадение Infinity == Infinity
+            if (babySteps[i] == giantSteps[j]) {
+                orderCandidate = i + m * j;
+                found = true;
+                break;
+            }
+        }
+    }
+
+    if (found) {
+        this->set_order(orderCandidate);
+    } else {
+        // Если совпадение не найдено, можно, например, установить порядок в 0 или использовать наивный перебор.
+        for (mpz_class i = N; i > mpz_class(0); --i){
+            if ((*this * i).isInfinity()) {
+                this->set_order(N);
+            }
+        }
+    }
+}
 

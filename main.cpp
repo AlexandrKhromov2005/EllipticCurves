@@ -17,6 +17,9 @@ int main(int argc, char* argv[]) {
 
         Curve curve(a, b, p);
         curve.find_points();
+        for (Point &pt : curve.points){
+            pt.calculate_order();
+        }
         std::cout << "Elliptic curve: y^2 = x^3 + " << a << "x + " << b << " (mod " << p << ")" << std::endl;
         std::cout << "Found points:" << std::endl;
         curve.print_points();

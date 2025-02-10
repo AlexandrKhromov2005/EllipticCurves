@@ -1,4 +1,5 @@
 #include "algorithms_for_primes.hpp"
+#include <algorithm>
 
 mpz_class mod(const mpz_class &a, const mpz_class &p) {
     return (((a % p) + p) % p);
@@ -160,3 +161,105 @@ int legendre_symbol(const mpz_class& a, const mpz_class& p) {
 
     return (d == 1) ? result : 0;
 }
+
+// Вспомогательная функция для алгоритма Полларда-Ро
+mpz_class pollards_rho(const mpz_class& n) {
+    if (n == 1) return 1;
+    if (n % 2 == 0) return 2;
+
+    mpz_class x = 2, y = 2, d = 1;
+    mpz_class c = rand() % (n-1) + 1;
+
+    // Явное объявление функтора
+    class Lambda {
+        mpz_class c, n;
+    public:
+        Lambda(mpz_class c, mpz_class n) : c(c), n(n) {}
+        mpz_class operator()(const mpz_class& x) const {
+            return (x * x + c) % n;
+        }
+    } f(c, n);
+
+    while (d == 1) {
+        x = f(x);
+        y = f(f(y));
+        mpz_sub(d.get_mpz_t(), x.get_mpz_t(), y.get_mpz_t());
+        mpz_gcd(d.get_mpz_t(), d.get_mpz_t(), n.get_mpz_t());
+    }
+
+    return (d == n) ? mpz_class(0) : d;
+}
+
+// Рекурсивная факторизация с использованием Полларда-Ро
+void factorize_recursive(const mpz_class& n, std::vector<mpz_class>& factors) {
+    if (n == 1) return;
+    if (mpz_probab_prime_p(n.get_mpz_t(), 15) > 0) {
+        factors.push_back(n);
+        return;
+    }
+
+    mpz_class d = pollards_rho(n);
+    factorize_recursive(d, factors);
+    factorize_recursive(n / d, factors);
+}
+
+// Основная функция факторизации
+
+#include <algorithm>
+
+std::vector<mpz_class> factorize(const mpz_class& n) {
+    std::vector<mpz_class> factors;
+    if (n == 0) return factors;
+
+    mpz_class num = n;
+
+    // Обработка отрицательных чисел
+    if (num < 0) {
+        factors.push_back(-1);
+        num = -num;
+    }
+
+    // Удаляем множители 2
+    while (num % 2 == 0) {
+        factors.push_back(2);
+        num /= 2;
+    }
+
+    // Проверяем нечётные делители до sqrt(num)
+    mpz_class i(3);
+    mpz_class max_i;
+    mpz_sqrt(max_i.get_mpz_t(), num.get_mpz_t());
+    
+    while (i <= max_i) {
+        while (num % i == 0) {
+            factors.push_back(i);
+            num /= i;
+            mpz_sqrt(max_i.get_mpz_t(), num.get_mpz_t()); // Обновляем max_i
+        }
+        i += 2;
+    }
+
+    // Обработка оставшегося числа
+    if (num > 1) {
+        if (mpz_probab_prime_p(num.get_mpz_t(), 15) > 0) {
+            factors.push_back(num);
+        } else {
+            // Используем Полларда-Ро и рекурсивно факторизуем
+            mpz_class d = pollards_rho(num);
+            if (d == 0 || d == 1) {
+                factors.push_back(num); // Не удалось разложить
+            } else {
+                auto sub_factors = factorize(d);
+                factors.insert(factors.end(), sub_factors.begin(), sub_factors.end());
+                auto sub_remaining = factorize(num / d);
+                factors.insert(factors.end(), sub_remaining.begin(), sub_remaining.end());
+            }
+        }
+    }
+
+    // Сортируем множители
+    std::sort(factors.begin(), factors.end());
+    return factors;
+}
+
+// Вспомогательные функции

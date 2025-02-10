@@ -9,27 +9,22 @@ mpz_class Curve::get_b() { return b; }
 mpz_class Curve::get_p() { return p; }
 
 void Curve::find_points() {
-    // Добавляем точку на бесконечности
     points.push_back(Point(this)); 
-    orders.push_back(mpz_class(-1));  // Здесь можно поставить особое значение, например, -1
 
     for (mpz_class x = 0; x < p; ++x) {
         mpz_class y_pow_2 = (x * x * x + a * x + b) % p;
         if (y_pow_2 == 0) {
-            Point pt(x, 0, this);
+            Point pt(x, 0, this, false);
             points.push_back(pt);
-            orders.push_back(pt.calculate_order()); 
             continue;
         }
 
         if (legendre_symbol(y_pow_2, p) == 1) {
-            Point pt1(x, mod_sqrt(y_pow_2, p), this);
+            Point pt1(x, mod_sqrt(y_pow_2, p), this, false);
             points.push_back(pt1);
-            orders.push_back(pt1.calculate_order());
 
-            Point pt2(x, p - mod_sqrt(y_pow_2, p), this);
+            Point pt2(x, p - mod_sqrt(y_pow_2, p), this, false);
             points.push_back(pt2);
-            orders.push_back(pt2.calculate_order());
         }
     }
 }
@@ -43,7 +38,7 @@ void Curve::print_points() {
             continue;
         }
         std::cout << "Point " << i << ": (" << point.get_x() << " , " << point.get_y() << ")"
-                  << " Order: " << orders[i.get_ui()] << std::endl;
+                  << " Order: " << point.get_order() << std::endl;
         ++i;
     }
 }
@@ -58,9 +53,7 @@ bool Curve::is_on_curve(const Point& P) const {
     return lhs == rhs;
 }
 
-void Curve::calculate_orders() {
-    orders.clear(); 
-    for (const Point& pt : points) {
-        orders.push_back(pt.calculate_order());
-    }
+
+mpz_class Curve::get_group_order() {
+    return mpz_class(static_cast<unsigned long>(points.size())); 
 }
